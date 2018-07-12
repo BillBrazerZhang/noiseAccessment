@@ -1,324 +1,100 @@
 % Speech Noise Assessment
 
 % Step I. Read Audio File
-fileName = 'sample.wav';
-Fs = 1000;
+% Sample: car noised speech, Fs=8KHz, mpb=128000
+fileName = 'car.wav';
+Fs = 8000;
 [y,Fs] = audioread(fileName);
-
-% A. Conventional Spectral Analysis
-I = xlsread('phonemes.xlsx','A1025:A1280');
-U = xlsread('phonemes.xlsx','B1025:B1280');
-NG = xlsread('phonemes.xlsx','C1025:C1280');
-n = 1024:1279;
+y = y/max(abs(y));
+y = y/1.1;
+p = audioplayer(y, Fs);
+play(p);
+n = length(y);
 figure(1);
-subplot(3,1,1);
-plot(n,I);
-xlabel('time sequence n=1024:1279');
+plot(0:n-1,y);
+xlabel('time sequence');
 ylabel('impulse response');
-title('impulse response of time series of phoneme /i/');
-subplot(3,1,2);
-plot(n,U);
-xlabel('time sequence n=1024:1279');
-ylabel('impulse response');
-title('impulse response of time series of phoneme /u/');
-subplot(3,1,3);
-plot(n,NG);
-xlabel('time sequence n=1024:1279');
-ylabel('impulse response');
-title('impulse response of time series of phoneme /\eta/');
+title('impulse response of car.wav');
 
-H_I = fft(I,256);
-H_U = fft(U,256);
-H_NG = fft(NG,256);
-L_I = zeros(1,128);
-L_U = zeros(1,128);
-L_NG = zeros(1,128);
-for i = 1:128
-    L_I(i) = mag2db(abs(H_I(i)));
-    L_U(i) = mag2db(abs(H_U(i)));
-    L_NG(i) = mag2db(abs(H_NG(i)));
-end
-N = 0:127;
-Nf = N*10000/256; 
+% Step II. Spectrom Analysis
 figure(2)
-subplot(1,3,1);
-plot(Nf,L_I,[270,270],[0,100],[2290,2290],[0,100],[3010,3010],[0,100]);
-xlabel('frequency(Hz)');
-ylabel('magnitude(dB)');
-text(280,90,'F1:270Hz');
-text(1000,80,'F2:2290Hz');
-text(3100,80,'F3:3010Hz');
-title('spectral magnitude of phoneme /i/, n=1024:1279');
-subplot(1,3,2);
-plot(Nf,L_U,[300,300],[0,100],[870,870],[0,100],[2240,2240],[0,100]);
-xlabel('frequency(Hz)');
-ylabel('magnitude(dB)');
-text(310,90,'F1:300Hz');
-text(900,80,'F2:870Hz');
-text(2250,80,'F3:2240Hz');
-title('spectral magnitude of phoneme /u/, n=1024:1279');
-subplot(1,3,3);
-plot(Nf,L_NG,[200,200],[0,100],[2460,2460],[0,100],[3680,3680],[0,100]);
-xlabel('frequency(Hz)');
-ylabel('magnitude(dB)');
-text(210,90,'F1:200Hz');
-text(1200,80,'F3:2460Hz');
-text(3690,80,'F4:3680Hz');
-title('spectral magnitude of phoneme /\eta/, n=1024:1279');
+spectrogram(y,256,128,256,8000);
+title('Spectrogram of Phrase "we were away", Length=128000, Fs=8kHz');
 
-I(65:256) = zeros(192,1);
-U(65:256) = zeros(192,1);
-NG(65:256) = zeros(192,1);
-H_I = fft(I,256);
-H_U = fft(U,256);
-H_NG = fft(NG,256);
-L_I = zeros(1,128);
-L_U = zeros(1,128);
-L_NG = zeros(1,128);
-for i = 1:128
-    L_I(i) = mag2db(abs(H_I(i)));
-    L_U(i) = mag2db(abs(H_U(i)));
-    L_NG(i) = mag2db(abs(H_NG(i)));
-end
+frame_num = n/128 - 1;
+A_P = zeros(frame_num,256);
+L_P = zeros(frame_num,128);
+for i = 1:frame_num
+	a_P = zeros(1,256);
+    [a_P(1:15),~] = lpc(y(128*(i-1)+1:128*(i+1)).*kaiser(256,1.5),14);
+	A_P(i,1:256) = fft(a_P,256);
+    for j = 1:128
+    	L_P(i,j) = 0.5*mag2db(1/((abs(A_P(i,j)))^2));
+    end
+end  
 N = 0:127;
-Nf = N*10000/256; 
-figure(3)
-subplot(1,3,1);
-plot(Nf,L_I,[270,270],[0,100],[2290,2290],[0,100],[3010,3010],[0,100]);
-xlabel('frequency(Hz)');
-ylabel('magnitude(dB)');
-text(280,90,'F1:270Hz');
-text(1000,80,'F2:2290Hz');
-text(3100,80,'F3:3010Hz');
-title('spectral magnitude of phoneme /i/, n=1024:1087');
-subplot(1,3,2);
-plot(Nf,L_U,[300,300],[0,100],[870,870],[0,100],[2240,2240],[0,100]);
-xlabel('frequency(Hz)');
-ylabel('magnitude(dB)');
-text(310,90,'F1:300Hz');
-text(900,80,'F2:870Hz');
-text(2250,80,'F3:2240Hz');
-title('spectral magnitude of phoneme /u/, n=1024:1087');
-subplot(1,3,3);
-plot(Nf,L_NG,[200,200],[0,100],[2460,2460],[0,100],[3680,3680],[0,100]);
-xlabel('frequency(Hz)');
-ylabel('magnitude(dB)');
-text(210,90,'F1:200Hz');
-text(1200,80,'F3:2460Hz');
-text(3690,80,'F4:3680Hz');
-title('spectral magnitude of phoneme /\eta/, n=1024:1087');
+Nf = N*10/256;
+C = L_P';
+yy = Nf;
+x = zeros(1,frame_num);
+for i = 1:frame_num
+	x(i) = i*128/8000;
+end
+figure (3)
+imagesc(x,yy,C), axis xy
+colorbar
+xlabel('time(s)');
+ylabel('frequency(kHz)');
+title('LPC Analysis of car.wav, 128000-point');
 
-%B. Autocorrelation Method of Linear Prediction
-I = xlsread('phonemes.xlsx','A1025:A1280');
-U = xlsread('phonemes.xlsx','B1025:B1280');
-NG = xlsread('phonemes.xlsx','C1025:C1280');
-I = I.*kaiser(256,1.5);
-U = U.*kaiser(256,1.5);
-NG = NG.*kaiser(256,1.5);
+% Step III. Pitch Period vs Time
+% Excitation Signal Power(dB) v.s. Time
+Period_Phrase = zeros(1,frame_num);
+Power_Phrase = zeros(1,frame_num)
+C_Phrase = zeros(frame_num,511);
+for i = 1:frame_num
+	a_P = zeros(1,256);
+    [a_P(1:15),~] = lpc(y(128*(i-1)+1:128*(i+1)).*kaiser(256,1.5),14);
+    Phrase_F = filter(a_P(1:15),1,y(128*(i-1)+1:128*(i+1)));
+    C_Phrase(i,1:511) = xcorr(Phrase_F);
+end
+for i = 1:frame_num
+	Power_Phrase(i) = 0.5*mag2db(C_Phrase(i,256));
 
-[~,g2] = lpc(I,2);
-[~,g4] = lpc(I,4);
-[~,g6] = lpc(I,6);
-[~,g8] = lpc(I,8);
-[~,g10] = lpc(I,10);
-[~,g12] = lpc(I,12);
-[~,g14] = lpc(I,14);
-p = [2,4,6,8,10,12,14];
+    [maxi_P,lsorMax] = findpeaks(C_Phrase(i,266:501),10:245,'SortStr','descend','NPeaks',1);
+    [maxi_PP,lsor] = findpeaks(C_Phrase(i,lsorMax+256-9:lsorMax+256+9),lsorMax-9:lsorMax+9,'MinPeakHeight',0.25*maxi_P,'SortStr','descend');
+    if length(maxi_PP) > 2
+    	Period_Phrase(i) = 0;
+    else
+    	Period_Phrase(i) = lsor(1);
+    end
+end
+for i = 1:fix(frame_num/2)
+    if Period_Phrase(i) > 200
+        Period_Phrase(i) = Period_Phrase(i)/3;
+    elseif Period_Phrase(i) > 100
+        Period_Phrase(i) = Period_Phrase(i)/2;
+    end
+end
+for i = fix(frame_num/2)+1:frame_num
+    if Period_Phrase(i) > 120
+        Period_Phrase(i) = Period_Phrase(i)/3;
+    elseif Period_Phrase(i) > 60
+        Period_Phrase(i) = Period_Phrase(i)/2;
+    end
+end
 figure(4)
-subplot(1,3,1);
-plot(p,[g2,g4,g6,g8,g10,g12,g14]);
-xlabel('order of inverse filter (p)');
-ylabel('$E_p$','Interpreter','latex','FontSize',11);
-title('$E_p$ v.s. inverse filter order p of /i/, n=1024:1279','Interpreter','latex');
+scatter(x,Period_Phrase/10);
+% values = spcrv(Period_Phrase/10,3); 
+% plot(x,values(1,:));
+xlabel('evolving time(s)');
+ylabel('Pitch Period(ms)');
+title('Pitch Period vs. Time of Phrase, Scatter Graph');
 
-[~,g2] = lpc(U,2);
-[~,g4] = lpc(U,4);
-[~,g6] = lpc(U,6);
-[~,g8] = lpc(U,8);
-[~,g10] = lpc(U,10);
-[~,g12] = lpc(U,12);
-[~,g14] = lpc(U,14);
-p = [2,4,6,8,10,12,14];
-subplot(1,3,2);
-plot(p,[g2,g4,g6,g8,g10,g12,g14]);
-xlabel('order of inverse filter (p)');
-ylabel('$E_p$','Interpreter','latex','FontSize',11);
-title('$E_p$ v.s. inverse filter order p of /u/, n=1024:1279','Interpreter','latex');
-
-[~,g2] = lpc(NG,2);
-[~,g4] = lpc(NG,4);
-[~,g6] = lpc(NG,6);
-[~,g8] = lpc(NG,8);
-[~,g10] = lpc(NG,10);
-[~,g12] = lpc(NG,12);
-[~,g14] = lpc(NG,14);
-p = [2,4,6,8,10,12,14];
-subplot(1,3,3);
-plot(p,[g2,g4,g6,g8,g10,g12,g14]);
-xlabel('order of inverse filter (p)');
-ylabel('$E_p$','Interpreter','latex','FontSize',11);
-title('$E_p$ v.s. inverse filter order p of /$\eta$/, n=1024:1279','Interpreter','latex');
-
-I14 = zeros(1,256);
-[I14(1:15),~] = lpc(I,14);
-N = 0:127;
-Nf = N*10000/256;
-A14 = fft(I14,256);
-L = zeros(1,128);
-for i = 1:128
-    L(i) = 0.5*mag2db(1/((abs(A14(i)))^2));
-end
 figure(5)
-subplot(1,3,1)
-plot(Nf,L,[270,270],[-20,100],[2290,2290],[-20,100],[3010,3010],[-20,100]);
-xlabel('frequency(Hz)');
-ylabel('10log($\frac{1}{|\hat{A}(k)|^2}$)','Interpreter','latex','FontSize',11);
-text(280,90,'F1:270Hz');
-text(1000,80,'F2:2290Hz');
-text(3100,80,'F3:3010Hz');
-title('10log($\frac{1}{|\hat{A}(k)|^2}$) of /i/, n=1024:1279, p=14','Interpreter','latex');
+plot(x,Power_Phrase);
+xlabel('evolving time(s)');
+ylabel('Average Power(dB)');
+title('Excitation Signal Power vs. Time of car.wav');
 
-U14 = zeros(1,256);
-[U14(1:15),~] = lpc(U,14);
-N = 0:127;
-Nf = N*10000/256;
-A14 = fft(U14,256);
-L = zeros(1,128);
-for i = 1:128
-    L(i) = 0.5*mag2db(1/((abs(A14(i)))^2));
-end
-figure(5)
-subplot(1,3,2)
-plot(Nf,L,[300,300],[-20,100],[870,870],[-20,100],[2240,2240],[-20,100]);
-xlabel('frequency(Hz)');
-ylabel('10log($\frac{1}{|\hat{A}(k)|^2}$)','Interpreter','latex','FontSize',11);
-text(310,90,'F1:300Hz');
-text(900,80,'F2:870Hz');
-text(2250,80,'F3:2240Hz');
-title('10log($\frac{1}{|\hat{A}(k)|^2}$) of /u/, n=1024:1279, p=14','Interpreter','latex');
 
-NG14 = zeros(1,256);
-[NG14(1:15),~] = lpc(NG,14);
-N = 0:127;
-Nf = N*10000/256;
-A14 = fft(NG14,256);
-L = zeros(1,128);
-for i = 1:128
-    L(i) = 0.5*mag2db(1/((abs(A14(i)))^2));
-end
-figure(5)
-subplot(1,3,3)
-plot(Nf,L,[200,200],[-20,100],[2460,2460],[-20,100],[3680,3680],[-20,100]);
-xlabel('frequency(Hz)');
-ylabel('10log($\frac{1}{|\hat{A}(k)|^2}$)','Interpreter','latex','FontSize',11);
-text(210,90,'F1:200Hz');
-text(1200,80,'F3:2460Hz');
-text(3690,80,'F4:3680Hz');
-title('10log($\frac{1}{|\hat{A}(k)|^2}$) of /$\eta$/, n=1024:1279, p=14','Interpreter','latex');
-
-I = xlsread('phonemes.xlsx','A1025:A1088');
-U = xlsread('phonemes.xlsx','B1025:B1088');
-NG = xlsread('phonemes.xlsx','C1025:C1088');
-I = I.*kaiser(64,1.5);
-U = U.*kaiser(64,1.5);
-NG = NG.*kaiser(64,1.5);
-
-[~,g2] = lpc(I,2);
-[~,g4] = lpc(I,4);
-[~,g6] = lpc(I,6);
-[~,g8] = lpc(I,8);
-[~,g10] = lpc(I,10);
-[~,g12] = lpc(I,12);
-[~,g14] = lpc(I,14);
-p = [2,4,6,8,10,12,14];
-figure(6)
-subplot(1,3,1);
-plot(p,[g2,g4,g6,g8,g10,g12,g14]);
-xlabel('order of inverse filter (p)');
-ylabel('$E_p$','Interpreter','latex','FontSize',11);
-title('$E_p$ v.s. inverse filter order p of /i/, n=1024:1087','Interpreter','latex');
-
-[~,g2] = lpc(U,2);
-[~,g4] = lpc(U,4);
-[~,g6] = lpc(U,6);
-[~,g8] = lpc(U,8);
-[~,g10] = lpc(U,10);
-[~,g12] = lpc(U,12);
-[~,g14] = lpc(U,14);
-p = [2,4,6,8,10,12,14];
-subplot(1,3,2);
-plot(p,[g2,g4,g6,g8,g10,g12,g14]);
-xlabel('order of inverse filter (p)');
-ylabel('$E_p$','Interpreter','latex','FontSize',11);
-title('$E_p$ v.s. inverse filter order p of /u/, n=1024:1087','Interpreter','latex');
-
-[~,g2] = lpc(NG,2);
-[~,g4] = lpc(NG,4);
-[~,g6] = lpc(NG,6);
-[~,g8] = lpc(NG,8);
-[~,g10] = lpc(NG,10);
-[~,g12] = lpc(NG,12);
-[~,g14] = lpc(NG,14);
-p = [2,4,6,8,10,12,14];
-subplot(1,3,3);
-plot(p,[g2,g4,g6,g8,g10,g12,g14]);
-xlabel('order of inverse filter (p)');
-ylabel('$E_p$','Interpreter','latex','FontSize',11);
-title('$E_p$ v.s. inverse filter order p of /$\eta$/, n=1024:1087','Interpreter','latex');
-
-I14 = zeros(1,256);
-[I14(1:15),~] = lpc(I,14);
-N = 0:127;
-Nf = N*10000/256;
-A14 = fft(I14,256);
-L = zeros(1,128);
-for i = 1:128
-    L(i) = 0.5*mag2db(1/((abs(A14(i)))^2));
-end
-figure(7)
-subplot(1,3,1)
-plot(Nf,L,[270,270],[-20,100],[2290,2290],[-20,100],[3010,3010],[-20,100]);
-xlabel('frequency(Hz)');
-ylabel('10log($\frac{1}{|\hat{A}(k)|^2}$)','Interpreter','latex','FontSize',11);
-text(280,90,'F1:270Hz');
-text(1000,80,'F2:2290Hz');
-text(3100,80,'F3:3010Hz');
-title('10log($\frac{1}{|\hat{A}(k)|^2}$)) of /i/, n=1024:1087, p=14','Interpreter','latex');
-
-U14 = zeros(1,256);
-[U14(1:15),~] = lpc(U,14);
-N = 0:127;
-Nf = N*10000/256;
-A14 = fft(U14,256);
-L = zeros(1,128);
-for i = 1:128
-    L(i) = 0.5*mag2db(1/((abs(A14(i)))^2));
-end
-figure(7)
-subplot(1,3,2)
-plot(Nf,L,[300,300],[-20,100],[870,870],[-20,100],[2240,2240],[-20,100]);
-xlabel('frequency(Hz)');
-ylabel('10log($\frac{1}{|\hat{A}(k)|^2}$)','Interpreter','latex','FontSize',11);
-text(310,90,'F1:300Hz');
-text(900,80,'F2:870Hz');
-text(2250,80,'F3:2240Hz');
-title('10log($\frac{1}{|\hat{A}(k)|^2}$) of /u/, n=1024:1087, p=14','Interpreter','latex');
-
-NG14 = zeros(1,256);
-[NG14(1:15),~] = lpc(NG,14);
-N = 0:127;
-Nf = N*10000/256;
-A14 = fft(NG14,256);
-L = zeros(1,128);
-for i = 1:128
-    L(i) = 0.5*mag2db(1/((abs(A14(i)))^2));
-end
-figure(7)
-subplot(1,3,3)
-plot(Nf,L,[200,200],[-20,100],[2460,2460],[-20,100],[3680,3680],[-20,100]);
-xlabel('frequency(Hz)');
-ylabel('10log($\frac{1}{|\hat{A}(k)|^2}$)','Interpreter','latex','FontSize',11);
-text(210,90,'F1:200Hz');
-text(1200,80,'F3:2460Hz');
-text(3690,80,'F4:3680Hz');
-title('10log($\frac{1}{|\hat{A}(k)|^2}$) of /$\eta$/, n=1024:1087, p=14','Interpreter','latex');
